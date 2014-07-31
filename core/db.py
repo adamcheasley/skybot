@@ -2,7 +2,7 @@ import os
 import sqlite3
 
 
-def get_db_connection(conn, name=''):
+def get_db_connection(conn=None, name=''):
     "returns an sqlite3 connection to a persistent database"
 
     if not name:

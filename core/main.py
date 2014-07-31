@@ -44,6 +44,8 @@ class Input(dict):
         def unban(target=None):
             conn.cmd('MODE', [chan, '-b', target or host])
 
+        def names():
+            conn.cmd('NAMES', [chan])
 
         dict.__init__(self, conn=conn, raw=raw, prefix=prefix, command=command,
                       params=params, nick=nick, user=user, host=host,

@@ -153,8 +153,10 @@ class IRC(object):
         thread.start_new_thread(self.conn.run, ())
         self.cmd("NICK", [self.nick])
         self.cmd("USER",
-                 [self.conf.get('user', 'skybot'), "3", "*", self.conf.get('realname',
-                                                                 'Python bot - http://github.com/rmmh/skybot')])
+                 [self.conf.get('user', 'skybot'),
+                  "3", "*",
+                  self.conf.get('realname',
+                                'Python bot - http://github.com/rmmh/skybot')])
         if 'server_password' in self.conf:
             self.cmd("PASS", [self.conf['server_password']])
 
@@ -177,10 +179,59 @@ class IRC(object):
                 if paramlist[-1].startswith(':'):
                     paramlist[-1] = paramlist[-1][1:]
                 lastparam = paramlist[-1]
+
             self.out.put([msg, prefix, command, params, nick, user, host,
                           paramlist, lastparam])
             if command == "PING":
                 self.cmd("PONG", paramlist)
+            if command == u'353':
+                nicks = lastparam.split(' ')
+                nicks = filter(None, nicks)
+                # remove the bot, as we don't need to track ourselves
+                nicks.remove(self.conf['nick'])
+                # make sure our table is initialised
+                db = bot.get_db_connection(
+                    name='%s.%s.db' % (self.conf['nick'], self.conf['server']))
+                db.execute("create table if not exists ircusers(nick, chan, "
+                           "primary key(nick, chan))")
+                clean_nicks = []
+                for _nick in nicks:
+                    if _nick.startswith('@') or _nick.startswith('+'):
+                        _nick = _nick[1:]
+                        clean_nicks.append(_nick)
+                    db.execute(
+                        "insert or ignore into ircusers(nick, chan)"
+                        "values(?,?)", (
+                            _nick.lower(), self.conf['channels'][0])
+                    )
+
+                # we also need to remove users from the database
+                # who are now no longer on this channel
+                saved_users = db.execute(
+                    "select nick from ircusers").fetchall()
+                saved_users = [x[0] for x in saved_users]
+                users_to_remove = set(saved_users) - set(clean_nicks)
+                for user in users_to_remove:
+                    db.execute(
+                        'delete from ircusers where nick="%s"' % user)
+                db.commit()
+
+            if command == "PART":
+                # remove the user from the table
+                if nick != self.conf['nick']:
+                    db.execute(
+                        'delete from ircusers '
+                        'where nick="%s"' % nick.lower()
+                    )
+                    db.commit()
+            if command == "JOIN":
+                # add user to the table
+                if nick != self.conf['nick']:
+                    db.execute(
+                        "insert or ignore into ircusers(nick, chan)"
+                        "values(?,?)", (nick.lower(), paramlist[0])
+                    )
+                    db.commit()
 
     def join(self, channel):
         self.cmd("JOIN", channel.split(" "))  # [chan, password]
