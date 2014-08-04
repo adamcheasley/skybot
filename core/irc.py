@@ -216,7 +216,7 @@ class IRC(object):
                         'delete from ircusers where nick="%s"' % user)
                 db.commit()
 
-            if command == "PART":
+            if command == "PART" or command == "QUIT":
                 # remove the user from the table
                 if nick != self.conf['nick']:
                     db.execute(

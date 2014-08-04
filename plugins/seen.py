@@ -37,9 +37,11 @@ def seeninput(paraml, input=None, db=None, bot=None):
     # first kick any users who have never spoken
     # i.e. they're not in the seen table
     never_seen_users = set(users) - set(seen_user_list)
+    kicked_users = []
     for user in never_seen_users:
         print ">>> kicking %s" % user
-        # input.kick(user, 'please pipe up!')
+        kicked_users.append(user)
+        input.kick(user, 'please pipe up!')
 
     # now kick anyone who hasn't chatted for over a week
     one_week_ago = datetime.now() - timedelta(weeks=1)
@@ -51,12 +53,17 @@ def seeninput(paraml, input=None, db=None, bot=None):
     for nick, date in seen_map.items():
         if date < one_week_ago:
             print ">>> %s hasn't chatted in over a week" % nick
-            # input.kick(nick, 'please pipe up!')
-            pass
+            input.kick(nick, 'please pipe up!')
+            kicked_users.append(nick)
         elif date < two_weeks_ago:
             print ">>> %s hasn't chatted in over 2 weeks" % nick
-            # input.ban(nick)
-            pass
+            input.ban(nick)
+            kicked_users.append(nick)
+
+    # remove any kicked users from the db
+    for user in kicked_users:
+        db.execute(
+            'delete from ircusers where nick="%s"' % user)
 
     db.commit()
 
