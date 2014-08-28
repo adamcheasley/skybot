@@ -156,7 +156,7 @@ class IRC(object):
                  [self.conf.get('user', 'skybot'),
                   "3", "*",
                   self.conf.get('realname',
-                                'Python bot - http://github.com/rmmh/skybot')])
+                                'Python bot - http://github.com/adamcheasley/skybot')])
         if 'server_password' in self.conf:
             self.cmd("PASS", [self.conf['server_password']])
 
@@ -195,9 +195,12 @@ class IRC(object):
                 db.execute("create table if not exists ircusers(nick, chan, "
                            "primary key(nick, chan))")
                 clean_nicks = []
+
                 for _nick in nicks:
                     if _nick.startswith('@') or _nick.startswith('+'):
                         _nick = _nick[1:]
+                        clean_nicks.append(_nick)
+                    else:
                         clean_nicks.append(_nick)
                     db.execute(
                         "insert or ignore into ircusers(nick, chan)"

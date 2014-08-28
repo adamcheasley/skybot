@@ -11,14 +11,15 @@ def db_init(db):
     "check to see that our db has the the seen table and return a connection."
     db.execute("create table if not exists seen(name, time, quote, chan, "
                "primary key(name, chan))")
+    db.execute("create table if not exists kicked(name, time, chan, "
+               "primary key(name, chan))")
     db.commit()
 
 
 @hook.singlethread
 @hook.event('PRIVMSG', ignorebots=False)
 def seeninput(paraml, input=None, db=None, bot=None):
-    """Kick users that have not chatted for over a week.
-    Bans users who haven't chatted in two weeks
+    """Kick users that have not chatted for over two weeks.
     """
     db_init(db)
     # add/update the user who has just spoken to the seen table
@@ -33,32 +34,32 @@ def seeninput(paraml, input=None, db=None, bot=None):
         'select name, time from seen where chan="%s"' % input.chan
     ).fetchall()
 
-    seen_user_list = [x[0] for x in seen_users]
-    # first kick any users who have never spoken
-    # i.e. they're not in the seen table
-    never_seen_users = set(users) - set(seen_user_list)
     kicked_users = []
-    for user in never_seen_users:
-        print ">>> kicking %s" % user
-        kicked_users.append(user)
-        input.kick(user, 'please pipe up!')
-
-    # now kick anyone who hasn't chatted for over a week
-    one_week_ago = datetime.now() - timedelta(weeks=1)
-    # then ban anyone who hasn't chatted for over two weeks
+    # kick anyone who hasn't chatted for over 2 weeks
     two_weeks_ago = datetime.now() - timedelta(weeks=2)
     # mapping of nick -> datetime they were last seen
     seen_map = {x[0]: datetime.fromtimestamp(x[1])
                 for x in seen_users}
     for nick, date in seen_map.items():
-        if date < one_week_ago:
-            print ">>> %s hasn't chatted in over a week" % nick
-            input.kick(nick, 'please pipe up!')
-            kicked_users.append(nick)
-        elif date < two_weeks_ago:
-            print ">>> %s hasn't chatted in over 2 weeks" % nick
-            input.ban(nick)
-            kicked_users.append(nick)
+        if date < two_weeks_ago and nick in users:
+            print ">>> %s hasn't chatted in over two weeks" % nick
+            # do not kick them again for 2 weeks
+            kicked_time = db.execute(
+                'select time from kicked where '
+                'chan="%s" and name="%s"' % (input.chan, input.nick.lower())
+            ).fetchone()
+            can_kick = True
+            if kicked_time is not None:
+                last_kicked = datetime.fromtimestamp(kicked_time[0])
+                if last_kicked > two_weeks_ago:
+                    can_kick = False
+            if can_kick:
+                input.kick(nick, 'please pipe up!')
+                kicked_users.append(nick)
+                # add user to kicked table
+                db.execute("insert or replace into kicked(name, time, chan)"
+                           "values(?,?,?)", (
+                               input.nick.lower(), time.time(), input.chan))
 
     # remove any kicked users from the db
     for user in kicked_users:
